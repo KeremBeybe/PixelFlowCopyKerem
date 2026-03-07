@@ -9,4 +9,5 @@ public class CubeData
     public Color Color;             // Rengi
     public bool IsActive;           // Patladý mý, duruyor mu?
     public GameObject CubeRef;      // Sahnede baðlý olduðu gerçek küp objesi
+    public bool isTargeted = false; 
 }
