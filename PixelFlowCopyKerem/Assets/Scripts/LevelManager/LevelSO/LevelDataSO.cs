@@ -22,4 +22,8 @@ public class LevelDataSO : ScriptableObject
     [Header("Domuz Kuyruðu (Bulmaca Dizilimi)")]
     // Senin elinle tek tek gireceðin kusursuz bulmaca listesi!
     public List<PigSpawnData> pigQueue = new List<PigSpawnData>();
+
+    [Header("Görsel Ayarlar")]
+    [Tooltip("Textureda dýþta kalan boþ alanlar kýrpýlsýn mý?")]
+    public bool autoCropEmptySpace = true;
 }

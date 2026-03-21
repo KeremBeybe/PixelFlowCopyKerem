@@ -1,55 +1,74 @@
+ï»¿using PathCreation;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using PathCreation;
 public class LevelManager : MonoBehaviour
 {
-    [Header("Level Ayarları")]
+    [Header("Level AyarlarÄ±")]
     public LevelDataSO CurrentLevel; // ScriptableObject'imiz
-    public GameObject CubePrefab;  // Sahnede dizilecek küp
-    public float CellSize = 1f;    // Izgara aralığı
+    public GameObject CubePrefab;  // Sahnede dizilecek kÃ¼p
+    public float CellSize = 1f;    // Izgara aralÄ±ÄŸÄ±
 
     [Header("Arka Plan Verisi (Grid)")]
-    public CubeData[,] GridMap;    // 2D Array haritamız
+    public CubeData[,] GridMap;    // 2D Array haritamÄ±z
 
-    // Obje Havuzu (Pool) Değişkenleri
+    // Obje Havuzu (Pool) DeÄŸiÅŸkenleri
     private Queue<GameObject> cubePool = new Queue<GameObject>();
     private List<GameObject> activeCubes = new List<GameObject>();
 
-    [Header("Path (Yol) Ayarları")]
+    [Header("Path (Yol) AyarlarÄ±")]
     public PathCreator pathCreator; // Sahnemizdeki PathCreator objesi
-    public float pathMargin = 2f; // Yolun küplere olan uzaklığı (Çok yapışmasın diye pay bırakıyoruz)
+    public float pathMargin = 2f; // Yolun kÃ¼plere olan uzaklÄ±ÄŸÄ± (Ã‡ok yapÄ±ÅŸmasÄ±n diye pay bÄ±rakÄ±yoruz)
 
-    // Singleton: Diğer scriptlerin bu koda anında ulaşmasını sağlar
+    // Singleton: DiÄŸer scriptlerin bu koda anÄ±nda ulaÅŸmasÄ±nÄ± saÄŸlar
     public static LevelManager Instance;
-    // Haritanın genel boyutlarını aklımızda tutalım
+    // HaritanÄ±n genel boyutlarÄ±nÄ± aklÄ±mÄ±zda tutalÄ±m
     [HideInInspector] public int mapWidth;
     [HideInInspector] public int mapHeight;
 
-    // Hangi renkten kaç küp olduğunu tutacak kusursuz liste
+    // Hangi renkten kaÃ§ kÃ¼p olduÄŸunu tutacak kusursuz liste
     public Dictionary<Color, int> ColorCounts = new Dictionary<Color, int>();
 
     [Header("Endgame (Son Evre) Takibi")]
     public int totalCubes = 0;
     public int destroyedCubes = 0;
 
+    [Header("Ã–lÃ§eklendirme (Boyut) AyarlarÄ±")]
+    public float baseMapSize = 15f; // Ä°deal harita (15x15)
+    public float currentMultiplier = 1f; // Hesaplanacak Ã§arpan
+
+    [Header("Level Ä°lerleme Sistemi")]
+    public List<LevelDataSO> levelList; // HazÄ±rladÄ±ÄŸÄ±n tÃ¼m SO'larÄ± buraya dizeceksin
+    public int currentLevelIndex = 0;   // Åu an kaÃ§Ä±ncÄ± leveldayÄ±z?
+
+    [Header("SanatÃ§Ä± Dostu Ã‡Ã¶zÃ¼nÃ¼rlÃ¼k AyarlarÄ±")]
+    [Tooltip("Transparan (boÅŸ) pikselleri otomatik bulur ve kÄ±rpar.")]
+    public bool autoCropEmptySpace = true;
+
+    [Tooltip("GÃ¶rsel 1024x1024 olsa bile haritayÄ± 30x30'luk Ä±zgaraya (Grid) zorlamak iÃ§in 30 yazÄ±n. Orijinal ise 0 bÄ±rakÄ±n.")]
+    public int customGridSize = 0;
+
+    [Header("Mermi Havuzu AyarlarÄ±")]
+    public GameObject bulletPrefab; // PigShooter'daki prefabÄ± buraya da sÃ¼rÃ¼kle
+    private Queue<GameObject> bulletPool = new Queue<GameObject>();
     private void Start ()
     {
-        // 20x20 harita maksimum 400 küp alır. Başlangıçta havuzu dolduruyoruz.
-        InitializePool(400);
-
-        // Test için oyun başlar başlamaz leveli oluşturuyoruz
+        // 20x20 harita maksimum 400 kÃ¼p alÄ±r. BaÅŸlangÄ±Ã§ta havuzu dolduruyoruz.
+        InitializeCubeMapPool(4000);
+        InitializeBulletPool(200);
+        // Test iÃ§in oyun baÅŸlar baÅŸlamaz leveli oluÅŸturuyoruz
         GenerateLevel();
     }
     private void Awake ()
     {
-        Instance = this; // Oyun başlar başlamaz kendini kaydet       
+        Instance = this; // Oyun baÅŸlar baÅŸlamaz kendini kaydet       
     }
-    private void InitializePool (int amount)
+    private void InitializeCubeMapPool (int amount)
     {
         for (int i = 0; i < amount; i++)
         {
-            // Küpleri Instantiate edip bu scriptin altına saklıyoruz
+            // KÃ¼pleri Instantiate edip bu scriptin altÄ±na saklÄ±yoruz
             GameObject obj = Instantiate(CubePrefab, transform);
             obj.SetActive(false);
             cubePool.Enqueue(obj);
@@ -58,63 +77,107 @@ public class LevelManager : MonoBehaviour
 
     public void GenerateLevel ()
     {
-        totalCubes = 0; // Bölüm başlarken sıfırla
+        totalCubes = 0;
         destroyedCubes = 0;
-        ColorCounts.Clear();
-        ClearCurrentLevel(); // Eğer sahnede eski bir level varsa önce onu temizle
+        ClearCurrentLevel();
 
         Texture2D tex = CurrentLevel.LevelTexture;
-        int width = tex.width;
-        int height = tex.height;
 
-        mapWidth = width;
-        mapHeight = height;
-        // Diziyi texture boyutuna göre başlatıyoruz
-        GridMap = new CubeData[width, height];
+        // --- 1. OTOMATÄ°K KIRPMA (AUTO-CROP) ---
+        int minX = 0, maxX = tex.width - 1, minY = 0, maxY = tex.height - 1;
 
-        for (int x = 0; x < width; x++)
+        if (CurrentLevel != null && CurrentLevel.autoCropEmptySpace)
         {
-            for (int y = 0; y < height; y++)
+            minX = tex.width; maxX = 0; minY = tex.height; maxY = 0;
+            bool hasPixel = false;
+            for (int i = 0; i < tex.width; i++)
             {
-                Color pixelColor = tex.GetPixel(x, y);
+                for (int j = 0; j < tex.height; j++)
+                {
+                    if (tex.GetPixel(i, j).a > 0.1f)
+                    {
+                        if (i < minX) minX = i;
+                        if (i > maxX) maxX = i;
+                        if (j < minY) minY = j;
+                        if (j > maxY) maxY = j;
+                        hasPixel = true;
+                    }
+                }
+            }
+            if (!hasPixel) { minX = 0; maxX = tex.width - 1; minY = 0; maxY = tex.height - 1; }
+        }
 
-                // Eğer pikselin Alpha (şeffaflık) değeri düşükse, orası boştur.
+        // Resmin boÅŸluksuz, GERÃ‡EK boyutu
+        int realArtWidth = maxX - minX + 1;
+        int realArtHeight = maxY - minY + 1;
+
+        // --- 2. GRID (Ã–LÃ‡EKLENDÄ°RME) SÄ°STEMÄ° ---
+        int gridW = realArtWidth;
+        int gridH = realArtHeight;
+
+        if (customGridSize > 0)
+        {
+            if (realArtWidth >= realArtHeight)
+            {
+                gridW = customGridSize;
+                gridH = Mathf.RoundToInt((float)realArtHeight / realArtWidth * customGridSize);
+            }
+            else
+            {
+                gridH = customGridSize;
+                gridW = Mathf.RoundToInt((float)realArtWidth / realArtHeight * customGridSize);
+            }
+        }
+
+        mapWidth = gridW;
+        mapHeight = gridH;
+
+        float maxDimension = Mathf.Max(gridW, gridH);
+        CellSize = baseMapSize / maxDimension;
+
+        float offsetX = (gridW - 1) * CellSize / 2f;
+        float offsetZ = (gridH - 1) * CellSize / 2f;
+
+        GridMap = new CubeData[gridW, gridH];
+
+        float stepX = (float)realArtWidth / gridW;
+        float stepY = (float)realArtHeight / gridH;
+
+        for (int x = 0; x < gridW; x++)
+        {
+            for (int y = 0; y < gridH; y++)
+            {
+                int texX = minX + Mathf.FloorToInt(x * stepX + (stepX / 2f));
+                int texY = minY + Mathf.FloorToInt(y * stepY + (stepY / 2f));
+
+                Color pixelColor = tex.GetPixel(texX, texY);
+
                 if (pixelColor.a < 0.1f)
                 {
                     GridMap[x, y] = null;
                     continue;
                 }
 
-                // Boyalı alan bulduk! Havuzdan bir küp çekiyoruz.
-                GameObject cube = cubePool.Dequeue();
+                GameObject cube;
+                if (cubePool != null && cubePool.Count > 0) cube = cubePool.Dequeue();
+                else cube = Instantiate(CubePrefab, transform);
+
                 cube.SetActive(true);
-                activeCubes.Add(cube); // İleride temizlemek için listeye ekliyoruz
-                totalCubes++; // YENİ: Havuzdan sahneye her küp koyduğumuzda sayacı 1 artırıyoruz!
+                activeCubes.Add(cube);
+                totalCubes++;
 
-                // X ve Y'yi kullanarak 3D dünyada hizalama (Z ekseninde derinlik veriyoruz)
-                cube.transform.position = new Vector3(x * CellSize, 0, y * CellSize);
+                cube.transform.position = new Vector3((x * CellSize) - offsetX, 0, (y * CellSize) - offsetZ);
+                cube.transform.localScale = CubePrefab.transform.localScale * CellSize;
 
-                // Material Property Block ile renk atama
                 ApplyColor(cube, pixelColor);
 
-                // --- YENİ: KİMLİK ATAMA VE SAYIM YAPMA ---
-                string hexID = ColorUtility.ToHtmlStringRGB(pixelColor); // Piksel rengini metne çevir
-
+                string hexID = ColorUtility.ToHtmlStringRGB(pixelColor);
                 BlockIdentity id = cube.GetComponent<BlockIdentity>();
-                if (id != null)
-                {
-                    id.colorHexID = hexID; // Küpün beynine rengini kazı
-                }
+                if (id != null) id.colorHexID = hexID;
 
-                // Renk sayacını güncelle (Bekleme odasındaki domuzlar için hazırlık)
-                if (!ColorCounts.ContainsKey(pixelColor))
-                {
-                    ColorCounts[pixelColor] = 0;
-                }
+                if (!ColorCounts.ContainsKey(pixelColor)) ColorCounts[pixelColor] = 0;
                 ColorCounts[pixelColor]++;
-                // -----------------------------------------
 
-                // Datayı array'e işliyoruz (Ateş etme mekaniğinde burayı okuyacağız)
                 GridMap[x, y] = new CubeData
                 {
                     GridPosition = new Vector2Int(x, y),
@@ -124,82 +187,132 @@ public class LevelManager : MonoBehaviour
                 };
             }
         }
-        if (pathCreator != null)
-        {
-            GenerateDynamicPath(width, height);
-        }
+
+        // DÄ°KKAT: Orijinalindeki gibi tekrar gridW ve gridH gÃ¶nderiyoruz!
+        if (pathCreator != null) GenerateDynamicPath(gridW, gridH);
+
         if (DockManager.Instance != null && CurrentLevel != null)
         {
-            // Orijinal listemizi (pigQueue) gönderiyoruz!
+            DockManager.Instance.transform.localScale = Vector3.one;
+            float dockZ = -offsetZ - (CellSize / 2f) - pathMargin - 4f;
+            DockManager.Instance.transform.position = new Vector3(0, 0, dockZ);
             DockManager.Instance.SpawnPigsForLevel(CurrentLevel.pigQueue);
         }
-        // YENİ EKLENEN KOD: Bölüm oluşturuldu, domuzlar dizildi. ŞİMDİ KAMERAYI AYARLA!
-        if (CameraManager.Instance != null)
+
+        if (CameraManager.Instance != null) Invoke(nameof(CallCameraFrame), 0.1f);
+        if (UIManager.Instance != null)
         {
-            CameraManager.Instance.FrameLevel();
+            UIManager.Instance.UpdateLevelText(currentLevelIndex);
         }
     }
+
     private void GenerateDynamicPath (int w, int h)
     {
-        // 1. Haritanın tam dış sınırlarını hesaplıyoruz (Küpün yarısı kadar ekstra pay ekleyerek tam köşeyi buluyoruz)
-        float minX = -CellSize / 2f;
-        float minZ = -CellSize / 2f;
-        float maxX = ((w - 1) * CellSize) + (CellSize / 2f);
-        float maxZ = ((h - 1) * CellSize) + (CellSize / 2f);
+        float offsetX = (w - 1) * CellSize / 2f;
+        float offsetZ = (h - 1) * CellSize / 2f;
 
-        // 2. Verdiğimiz margin (boşluk) değerine göre 4 köşenin koordinatını belirliyoruz
+        float minX = -offsetX - (CellSize / 2f);
+        float minZ = -offsetZ - (CellSize / 2f);
+        float maxX = offsetX + (CellSize / 2f);
+        float maxZ = offsetZ + (CellSize / 2f);
+
         Vector3[] waypoints = new Vector3[]
         {
-        new Vector3(minX - pathMargin, 0, minZ - pathMargin), // Sol Alt
-        new Vector3(maxX + pathMargin, 0, minZ - pathMargin), // Sağ Alt
-        new Vector3(maxX + pathMargin, 0, maxZ + pathMargin), // Sağ Üst
-        new Vector3(minX - pathMargin, 0, maxZ + pathMargin)  // Sol Üst
+            new Vector3(minX - pathMargin, 0, minZ - pathMargin), // Sol Alt
+            new Vector3(maxX + pathMargin, 0, minZ - pathMargin), // SaÄŸ Alt
+            new Vector3(maxX + pathMargin, 0, maxZ + pathMargin), // SaÄŸ Ãœst
+            new Vector3(minX - pathMargin, 0, maxZ + pathMargin)  // Sol Ãœst
         };
 
-        // 3. Bu 4 noktayı birleştirerek yeni bir yol yaratıyoruz (isClosed: true ile kutuyu kapatıyoruz)
         BezierPath autoPath = new BezierPath(waypoints, true, PathSpace.xz);
-
-        // 4. JİLET GİBİ KÖŞELER: Kavisleri kodla yok edip köşeleri 90 dereceye sabitliyoruz!
         autoPath.ControlPointMode = BezierPath.ControlMode.Automatic;
-        autoPath.AutoControlLength = 0.01f; // Kavis uzunluğunu 0'a çok yakın yaparak köşeleri sivriltiyoruz.
-
-        // 5. Oluşturduğumuz bu mükemmel yolu sahnedeki PathCreator'a teslim ediyoruz
+        autoPath.AutoControlLength = 0.01f; // Orijinal keskin dÃ¶nÃ¼ÅŸ
         pathCreator.bezierPath = autoPath;
+    }
+    private void OnDrawGizmos ()
+    {
+        // PathCreator ve iÃ§indeki path boÅŸ deÄŸilse Ã§iz
+        if (pathCreator != null && pathCreator.path != null)
+        {
+            Gizmos.color = Color.green; // Ä°stediÄŸin rengi yapabilirsin (Ã–rn: Color.red, Color.cyan)
+
+            // Yolun tÃ¼m noktalarÄ±nÄ± dolaÅŸ ve aralarÄ±na Ã§izgi Ã§ek
+            for (int i = 0; i < pathCreator.path.NumPoints - 1; i++)
+            {
+                Vector3 p1 = pathCreator.path.GetPoint(i);
+                Vector3 p2 = pathCreator.path.GetPoint(i + 1);
+
+                // Noktalar arasÄ±na Ã§izgi Ã§ek (VirajlarÄ± gÃ¶sterecek)
+                Gizmos.DrawLine(p1, p2);
+            }
+
+            // EÄŸer yol bir dÃ¶ngÃ¼yse (loop), son noktayÄ± ilk noktaya baÄŸla
+            if (pathCreator.path.isClosedLoop)
+            {
+                Vector3 lastPoint = pathCreator.path.GetPoint(pathCreator.path.NumPoints - 1);
+                Vector3 firstPoint = pathCreator.path.GetPoint(0);
+                Gizmos.DrawLine(lastPoint, firstPoint);
+            }
+        }
     }
     private void ClearCurrentLevel ()
     {
-        // Sahnedeki aktif küpleri kapatıp havuza geri atıyoruz (Sıfır Instantiate/Destroy)
-        foreach (var cube in activeCubes)
+        // 1. KÃ¼pleri Temizle (EÄŸer liste varsa)
+        if (activeCubes != null)
         {
-            cube.SetActive(false);
-            cubePool.Enqueue(cube);
+            foreach (GameObject cube in activeCubes)
+            {
+                if (cube != null)
+                {
+                    cube.SetActive(false); // Sahneden gizle
+
+                    // ÅÃœPHELÄ° YER BURASIYDI! 
+                    // EÄŸer havuz kodunu eklediysen, havuzun var olup olmadÄ±ÄŸÄ±nÄ± da kontrol etmeliyiz:
+                    if (cubePool != null && !cubePool.Contains(cube))
+                    {
+                        cubePool.Enqueue(cube);
+                    }
+                }
+            }
+            activeCubes.Clear(); // Listeyi boÅŸalt
         }
-        activeCubes.Clear();
+
+        // 2. HaritayÄ± Temizle (EÄŸer daha Ã¶nceden Ã§izildiyse)
+        if (GridMap != null)
+        {
+            Array.Clear(GridMap, 0, GridMap.Length);
+        }
+
+        // 3. Renk SayacÄ±nÄ± Temizle (EÄŸer sÃ¶zlÃ¼k oluÅŸturulduysa)
+        if (ColorCounts != null)
+        {
+            ColorCounts.Clear();
+        }
     }
 
     private void ApplyColor (GameObject cube, Color color)
     {
         MeshRenderer renderer = cube.GetComponent<MeshRenderer>();
         MaterialPropertyBlock mpb = new MaterialPropertyBlock();
-        // URP'nin standart shader'ında ana renk değişkeni genelde "_BaseColor"dır.
+        // URP'nin standart shader'Ä±nda ana renk deÄŸiÅŸkeni genelde "_BaseColor"dÄ±r.
         mpb.SetColor("_BaseColor", color);
         renderer.SetPropertyBlock(mpb);
     }
-    #region Yardımcı fonksiyonlar
-    // Verilen X ve Y koordinatında bir küp var mı, veya harita sınırının dışı mı?
+    #region YardÄ±mcÄ± fonksiyonlar
+    // Verilen X ve Y koordinatÄ±nda bir kÃ¼p var mÄ±, veya harita sÄ±nÄ±rÄ±nÄ±n dÄ±ÅŸÄ± mÄ±?
     public bool IsCellOccupied (int x, int y)
     {
-        // 1. Sınır kontrolü (Haritanın dışına çıkıyorsa orayı "Duvar" sayıp dolu döndürüyoruz)
+        // 1. SÄ±nÄ±r kontrolÃ¼ (HaritanÄ±n dÄ±ÅŸÄ±na Ã§Ä±kÄ±yorsa orayÄ± "Duvar" sayÄ±p dolu dÃ¶ndÃ¼rÃ¼yoruz)
         if (x < 0 || x >= mapWidth || y < 0 || y >= mapHeight) return true;
 
-        // 2. Eğer Array'in o noktasında veri varsa (null değilse) orası doludur
+        // 2. EÄŸer Array'in o noktasÄ±nda veri varsa (null deÄŸilse) orasÄ± doludur
         if (GridMap[x, y] != null) return true;
 
-        // Hiçbir engele takılmadıysa orası boştur!
+        // HiÃ§bir engele takÄ±lmadÄ±ysa orasÄ± boÅŸtur!
         return false;
     }
 
-    // Mermi yerine oturduğunda onu GridMap'e kaydet
+    // Mermi yerine oturduÄŸunda onu GridMap'e kaydet
     public void AddToGrid (int x, int y, GameObject block)
     {
         GridMap[x, y] = new CubeData
@@ -210,15 +323,97 @@ public class LevelManager : MonoBehaviour
         };
     }
     #endregion
-    
-    // YENİ FONKSİYON: Dışarıdan küp patladığında burası çağrılacak ve %95 kontrolü yapacak
+
+    // YENÄ° FONKSÄ°YON: DÄ±ÅŸarÄ±dan kÃ¼p patladÄ±ÄŸÄ±nda burasÄ± Ã§aÄŸrÄ±lacak ve %95 kontrolÃ¼ yapacak
     public bool IsEndgameActive ()
     {
         if (totalCubes == 0) return false;
 
-        // Patlayan küp oranını hesapla (örn: 0.95)
+        // Patlayan kÃ¼p oranÄ±nÄ± hesapla (Ã¶rn: 0.95)
         float progress = (float)destroyedCubes / totalCubes;
-        return progress >= 0.90f; // Oyuncu sıkılmasın diye %90'da başlatıyoruz, istersen 0.95f yapabilirsin!
+        return progress >= 0.90f; // Oyuncu sÄ±kÄ±lmasÄ±n diye %90'da baÅŸlatÄ±yoruz, istersen 0.95f yapabilirsin!
+    }
+    // YENÄ°: Kazanma KontrolÃ¼!
+    public void CheckWinCondition ()
+    {
+        // EÄŸer patlayan kÃ¼p sayÄ±sÄ±, toplam kÃ¼plere ulaÅŸtÄ±ysa...
+        if (destroyedCubes >= totalCubes && totalCubes > 0)
+        {
+            Debug.Log("ğŸ‰ KUSURSUZ! BÃ–LÃœM GEÃ‡Ä°LDÄ°!");
+            if (AudioManager.Instance != null) AudioManager.Instance.Play2D(5);
+            // Oyuncuya patlama efektlerini izlemesi iÃ§in 2 saniye ver, sonra diÄŸer levele geÃ§
+            Invoke(nameof(LoadNextLevel), 2f);
+        }
     }
 
+    private void LoadNextLevel ()
+    {
+        currentLevelIndex++; // SÄ±radaki levele geÃ§!
+
+        if (currentLevelIndex < levelList.Count)
+        {
+            // Yeni levelin SO dosyasÄ±nÄ± aktif et
+            CurrentLevel = levelList[currentLevelIndex];
+
+            // GÃœVENLÄ°K TEMÄ°ZLÄ°ÄÄ°: Sahnede boÅŸta gezen, slota yatmÄ±ÅŸ eski domuzlar varsa onlarÄ± tamamen sil!
+            PigMovement[] oldPigs = FindObjectsOfType<PigMovement>();
+            foreach (PigMovement pig in oldPigs)
+            {
+                if (DockManager.Instance != null) DockManager.Instance.ReturnPigToPool(pig.gameObject);
+                else Destroy(pig.gameObject);
+            }
+
+            // Oyunun kendi kendini baÅŸtan kurduÄŸu o meÅŸhur fonksiyonunu Ã§aÄŸÄ±r!
+            GenerateLevel();
+        }
+        else
+        {
+            // BÃ¼tÃ¼n leveller bittiyse
+            Debug.Log("ğŸ† OYUN BÄ°TTÄ°! BÃœTÃœN BÃ–LÃœMLERÄ° GEÃ‡TÄ°N!");
+        }
+    }
+    // Invoke iÃ§in yardÄ±mcÄ± kÃ¼Ã§Ã¼k fonksiyon
+    private void CallCameraFrame ()
+    {
+        if (CameraManager.Instance != null) CameraManager.Instance.FrameLevel();
+    }
+
+    #region BulletPoolMethods
+    // Start veya InitializePool iÃ§inde Ã§aÄŸÄ±rabilirsin
+    private void InitializeBulletPool (int amount)
+    {
+        for (int i = 0; i < amount; i++)
+        {
+            GameObject obj = Instantiate(bulletPrefab, transform);
+            obj.SetActive(false);
+            bulletPool.Enqueue(obj);
+        }
+    }
+
+    // Havuzdan mermi alma fonksiyonu
+    public GameObject GetBulletFromPool ()
+    {
+        if (bulletPool.Count > 0)
+        {
+            GameObject obj = bulletPool.Dequeue();
+            obj.SetActive(true);
+            return obj;
+        }
+        else
+        {
+            // Havuz biterse yeni tane Ã¼ret (canGrow mantÄ±ÄŸÄ±)
+            return Instantiate(bulletPrefab, transform);
+        }
+    }
+
+    // Havuza mermi geri verme fonksiyonu
+    public void ReturnBulletToPool (GameObject bullet)
+    {
+        bullet.SetActive(false);
+        if (!bulletPool.Contains(bullet))
+        {
+            bulletPool.Enqueue(bullet);
+        }
+    }
+    #endregion
 }

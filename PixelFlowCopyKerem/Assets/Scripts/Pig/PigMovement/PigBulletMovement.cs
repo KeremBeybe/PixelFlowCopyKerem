@@ -13,7 +13,7 @@ public class PigBulletMovement : MonoBehaviour
         // Eðer hedefimiz yoksa veya biz yoldayken baþka bir mucizeyle yok olduysa mermiyi iptal et.
         if (targetCube == null || targetCube.CubeRef == null)
         {
-            Destroy(gameObject);
+            LevelManager.Instance.ReturnBulletToPool(gameObject);
             return;
         }
 
@@ -24,10 +24,13 @@ public class PigBulletMovement : MonoBehaviour
         // Mermi hedefin tam kalbine ulaþtý mý?
         if (Vector3.Distance(transform.position, targetPos) < 0.1f)
         {
+            if (AudioManager.Instance != null) AudioManager.Instance.PlaySeries(0);
             GameObject hedefKup = targetCube.CubeRef;
             // 1. OYUNUN BEYNÝNDEN ANINDA SÝL (Arkadan gelen domuzlarýn önü hemen açýlsýn)
             LevelManager.Instance.GridMap[targetCube.GridPosition.x, targetCube.GridPosition.y] = null;
             LevelManager.Instance.destroyedCubes++;
+            // YENÝ EKLENEN: Skoru artýrdýn, peki oyun bitti mi diye sor!
+            LevelManager.Instance.CheckWinCondition();
 
             // 2. GÖRSEL ÞÖLEN (DOTween Pop Animasyonu)
             if (hedefKup != null)
@@ -35,17 +38,17 @@ public class PigBulletMovement : MonoBehaviour
                 // Önce %130 boyutuna þiþir (0.1 saniyede)
                 hedefKup.transform.DOScale(Vector3.one * 1.3f, 0.1f).OnComplete(() =>
                 {
-                    // Sonra içine çökerek (InBack yaylanmasýyla) sýfýra küçül ve YUT! (0.15 saniyede)
                     hedefKup.transform.DOScale(Vector3.zero, 0.15f).SetEase(Ease.InBack).OnComplete(() =>
                     {
-                        // Animasyon bitince objeyi sahneden tamamen temizle
-                        Destroy(hedefKup);
+                        // KÜPÜ TAMAMEN SÝLME! Obje havuzu (Pool) kullandýðýmýz için uykuya al.
+                        // Boyutunu da tekrar normale (1,1,1) döndür ki havuzdan bir daha çýkarken görünmez olmasýn!
+                        hedefKup.SetActive(false);
+                        hedefKup.transform.localScale = Vector3.one;
                     });
                 });
             }
 
-            // 3. Görev tamam, mermiyi yok et
-            Destroy(gameObject);
+            LevelManager.Instance.ReturnBulletToPool(gameObject);
         }
     }
 }

@@ -1,3 +1,4 @@
+using DG.Tweening;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
@@ -23,6 +24,8 @@ public class DockManager : MonoBehaviour
     [HideInInspector] public GameObject[] currentWaitingPigs; // Hangi slotta hangi domuz yatýyor?
     private int activeMaxSlots;
 
+    private Queue<GameObject> pigPool = new Queue<GameObject>();
+
     void Awake ()
     {
         Instance = this;
@@ -38,7 +41,8 @@ public class DockManager : MonoBehaviour
                 GameObject pig = columns[col][i];
                 if (pig != null)
                 {
-                    // Domuzun Hedef Yeri = Sütun baþý pozisyonu - (Geriye doðru mesafe * sýra numarasý)
+                    float mult = LevelManager.Instance != null ? LevelManager.Instance.currentMultiplier : 1f;
+                    // DockManager büyüdüðü için boþluklar otomatik uzuyor, mult ile çarpmýyoruz.
                     Vector3 targetPos = columnStarts[col].position + (Vector3.back * (i * pigSpacing));
 
                     pig.transform.position = Vector3.Lerp(pig.transform.position, targetPos, Time.deltaTime * 10f);
@@ -76,16 +80,25 @@ public class DockManager : MonoBehaviour
             // Hatalý bir sütun numarasý girilirse oyun çökmesin diye güvenlik
             int safeColumn = Mathf.Clamp(data.columnIndex, 0, columnStarts.Length - 1);
 
-            GameObject yeniDomuz = Instantiate(pigPrefab, transform.position, Quaternion.identity);
+            GameObject yeniDomuz = GetPigFromPool();
+            yeniDomuz.transform.position = transform.position;
+            yeniDomuz.transform.rotation = Quaternion.identity;
+            yeniDomuz.transform.localScale = Vector3.one;
 
             PigShooter shooter = yeniDomuz.GetComponentInChildren<PigShooter>();
-            if (shooter != null) shooter.SetPigData(data.pigColor, data.ammoCount);
+            if (shooter != null)
+            {
+                shooter.ResetShooterState(); // Hafýza sil
+                shooter.SetPigData(data.pigColor, data.ammoCount);
+            }
 
             PigMovement movement = yeniDomuz.GetComponent<PigMovement>();
-            if (movement != null && LevelManager.Instance != null)
-                movement.pathCreator = LevelManager.Instance.pathCreator;
+            if (movement != null)
+            {
+                movement.ResetPigState(); // Hafýza sil
+                if (LevelManager.Instance != null) movement.pathCreator = LevelManager.Instance.pathCreator;
+            }
 
-            // Domuzu tam olarak senin istediðin o sütuna koy!
             columns[safeColumn].Add(yeniDomuz);
         }
     }
@@ -113,21 +126,32 @@ public class DockManager : MonoBehaviour
         return false;
     }
 
-    // Domuz 1 turu bitirdiðinde ona boþ bir yatak (Slot) bul
     public Transform TryGetWaitingSlot (GameObject pig)
     {
         for (int i = 0; i < activeMaxSlots; i++)
         {
-            if (currentWaitingPigs[i] == null) // Boþ yer bulundu!
+            if (currentWaitingPigs[i] == null)
             {
                 currentWaitingPigs[i] = pig;
-                return waitingSlots[i]; // Slotun pozisyonunu gönder ki domuz oraya gitsin
+                return waitingSlots[i];
             }
         }
-        return null; // YER YOK! (Oyuncu birazdan Game Over olacak)
+        if (AudioManager.Instance != null) AudioManager.Instance.Play2D(2);
+
+        if (PlayerPrefs.GetInt("Vibration", 1) == 1)
+        {
+#if UNITY_EDITOR
+            // PC'de test ederken Console'da gör ki çalýþtýðýný anla
+            Debug.Log("<color=yellow><b>[VIBRATION SIMULATION]:</b> ZIIIIIIIIT!</color>");
+#elif UNITY_ANDROID || UNITY_IOS
+        // Gerçek cihazda titre
+        Handheld.Vibrate();
+#endif
+        }
+            Debug.LogError("GAME OVER! Bekleme odasýnda yer kalmadý!");
+        return null;
     }
 
-    // Domuza tekrar týklandýðýnda onu yataktan (slottan) çýkar
     public void RemoveFromWaitingSlot (GameObject pig)
     {
         for (int i = 0; i < currentWaitingPigs.Length; i++)
@@ -139,4 +163,36 @@ public class DockManager : MonoBehaviour
             }
         }
     }
+
+    public float GetTotalDockWidth ()
+    {
+        if (waitingSlots == null || waitingSlots.Length == 0) return 0f;
+        float minX = waitingSlots[0].position.x;
+        float maxX = waitingSlots[waitingSlots.Length - 1].position.x;
+        return (maxX - minX) + 2f;
+    }
+
+    #region PigPoolMethods
+    public GameObject GetPigFromPool ()
+    {
+        if (pigPool.Count > 0)
+        {
+            GameObject pig = pigPool.Dequeue();
+            pig.SetActive(true);
+            return pig;
+        }
+        return Instantiate(pigPrefab, transform.position, Quaternion.identity);
+    }
+
+    // --- YENÝ: HAVUZA DOMUZ ÝADE ETME ---
+    public void ReturnPigToPool (GameObject pig)
+    {
+        pig.SetActive(false);
+        pig.transform.SetParent(this.transform);
+        if (!pigPool.Contains(pig))
+        {
+            pigPool.Enqueue(pig);
+        }
+    }
+    #endregion
 }

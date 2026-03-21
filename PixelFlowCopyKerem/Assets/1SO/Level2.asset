@@ -1,0 +1,35 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6d40c7ec46772ca49b00969f8f728767, type: 3}
+  m_Name: Level2
+  m_EditorClassIdentifier: 
+  LevelTexture: {fileID: 2800000, guid: 663b706368ee8024e93abaa7814db94c, type: 3}
+  maxWaitingSlots: 5
+  pigQueue:
+  - pigColor: {r: 0, g: 0, b: 0, a: 0}
+    ammoCount: 52
+    columnIndex: 0
+  - pigColor: {r: 0.85098046, g: 0.627451, b: 0.40000004, a: 0}
+    ammoCount: 36
+    columnIndex: 0
+  - pigColor: {r: 0.9843138, g: 0.9490197, b: 0.21176472, a: 0}
+    ammoCount: 40
+    columnIndex: 1
+  - pigColor: {r: 0.6745098, g: 0.19607845, b: 0.19607845, a: 0}
+    ammoCount: 22
+    columnIndex: 1
+  - pigColor: {r: 0.38823533, g: 0.60784316, b: 1, a: 0}
+    ammoCount: 16
+    columnIndex: 2
+  - pigColor: {r: 0.21568629, g: 0.5803922, b: 0.43137258, a: 0}
+    ammoCount: 8
+    columnIndex: 2
