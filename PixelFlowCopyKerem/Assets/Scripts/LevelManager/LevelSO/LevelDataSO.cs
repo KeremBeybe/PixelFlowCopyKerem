@@ -15,7 +15,9 @@ public class LevelDataSO : ScriptableObject
 {
     [Header("Level Tasarýmý")]
     public Texture2D LevelTexture;
-
+    public Sprite ButtonSprite; // Butonun ana rengi
+    public bool IsHardLevel = false;       // "Zor" UI'ý için kontrol
+    
     [Header("Zorluk Ayarlarý")]
     public int maxWaitingSlots = 5;
 

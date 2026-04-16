@@ -12,12 +12,27 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6d40c7ec46772ca49b00969f8f728767, type: 3}
   m_Name: Level5
   m_EditorClassIdentifier: 
-  LevelTexture: {fileID: 2800000, guid: eef858df64b0a584cba73809e8e87cbb, type: 3}
+  LevelTexture: {fileID: 2800000, guid: 6b2e3e35a9cb006468e0fe03c4a7a0ef, type: 3}
+  ButtonSprite: {fileID: 21300000, guid: 3cee3faceebf04b08946d7ad4202f081, type: 3}
+  IsHardLevel: 1
   maxWaitingSlots: 5
   pigQueue:
   - pigColor: {r: 0, g: 0, b: 0, a: 0}
-    ammoCount: 64
+    ammoCount: 48
     columnIndex: 0
-  - pigColor: {r: 0.6745098, g: 0.19607845, b: 0.19607845, a: 0}
-    ammoCount: 30
+  - pigColor: {r: 0.35686275, g: 0.43137258, b: 0.882353, a: 1}
+    ammoCount: 10
+    columnIndex: 0
+  - pigColor: {r: 0.38823533, g: 0.60784316, b: 1, a: 1}
+    ammoCount: 42
     columnIndex: 1
+  - pigColor: {r: 1, g: 1, b: 1, a: 1}
+    ammoCount: 15
+    columnIndex: 1
+  - pigColor: {r: 0.6745098, g: 0.19607845, b: 0.19607845, a: 1}
+    ammoCount: 3
+    columnIndex: 2
+  - pigColor: {r: 0.8745099, g: 0.4431373, b: 0.14901961, a: 1}
+    ammoCount: 1
+    columnIndex: 2
+  autoCropEmptySpace: 1

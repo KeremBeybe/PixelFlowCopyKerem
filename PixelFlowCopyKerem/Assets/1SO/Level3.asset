@@ -12,12 +12,33 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 6d40c7ec46772ca49b00969f8f728767, type: 3}
   m_Name: Level3
   m_EditorClassIdentifier: 
-  LevelTexture: {fileID: 2800000, guid: f3b6a920fbb0c2841ba9048161ee4fc8, type: 3}
+  LevelTexture: {fileID: 2800000, guid: 99c227856b8f2fc459245891150a19cc, type: 3}
+  ButtonSprite: {fileID: 21300000, guid: 5b2f70c200f624e07a6131de2c4f0d6e, type: 3}
+  IsHardLevel: 0
   maxWaitingSlots: 5
   pigQueue:
-  - pigColor: {r: 0.6, g: 0.8980393, b: 0.3137255, a: 0}
-    ammoCount: 16
+  - pigColor: {r: 0, g: 0, b: 0, a: 1}
+    ammoCount: 7
     columnIndex: 0
-  - pigColor: {r: 0.8745099, g: 0.4431373, b: 0.14901961, a: 0}
-    ammoCount: 5
+  - pigColor: {r: 0.35686275, g: 0.43137258, b: 0.882353, a: 0}
+    ammoCount: 20
+    columnIndex: 0
+  - pigColor: {r: 0.40000004, g: 0.22352943, b: 0.19215688, a: 0}
+    ammoCount: 7
     columnIndex: 1
+  - pigColor: {r: 0.38823533, g: 0.60784316, b: 1, a: 0}
+    ammoCount: 10
+    columnIndex: 1
+  - pigColor: {r: 0.35686275, g: 0.43137258, b: 0.882353, a: 0}
+    ammoCount: 20
+    columnIndex: 2
+  - pigColor: {r: 0.38823533, g: 0.60784316, b: 1, a: 0}
+    ammoCount: 20
+    columnIndex: 2
+  - pigColor: {r: 0, g: 0, b: 0, a: 0}
+    ammoCount: 20
+    columnIndex: 0
+  - pigColor: {r: 0, g: 0, b: 0, a: 0}
+    ammoCount: 20
+    columnIndex: 1
+  autoCropEmptySpace: 1

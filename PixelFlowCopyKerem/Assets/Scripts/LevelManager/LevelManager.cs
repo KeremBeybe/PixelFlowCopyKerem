@@ -1,4 +1,5 @@
 ﻿using PathCreation;
+using PathCreation.Examples;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -20,6 +21,7 @@ public class LevelManager : MonoBehaviour
     [Header("Path (Yol) Ayarları")]
     public PathCreator pathCreator; // Sahnemizdeki PathCreator objesi
     public float pathMargin = 2f; // Yolun küplere olan uzaklığı (Çok yapışmasın diye pay bırakıyoruz)
+    public float roadWidthForGeneratedPath = 1.0f;
 
     // Singleton: Diğer scriptlerin bu koda anında ulaşmasını sağlar
     public static LevelManager Instance;
@@ -57,8 +59,7 @@ public class LevelManager : MonoBehaviour
         // 20x20 harita maksimum 400 küp alır. Başlangıçta havuzu dolduruyoruz.
         InitializeCubeMapPool(4000);
         InitializeBulletPool(200);
-        // Test için oyun başlar başlamaz leveli oluşturuyoruz
-        GenerateLevel();
+        currentLevelIndex = PlayerPrefs.GetInt("SavedLevel", 0);
     }
     private void Awake ()
     {
@@ -226,8 +227,16 @@ public class LevelManager : MonoBehaviour
 
         BezierPath autoPath = new BezierPath(waypoints, true, PathSpace.xz);
         autoPath.ControlPointMode = BezierPath.ControlMode.Automatic;
-        autoPath.AutoControlLength = 0.01f; // Orijinal keskin dönüş
+        autoPath.AutoControlLength = 0.1f; // Orijinal keskin dönüş
         pathCreator.bezierPath = autoPath;
+        // --- İŞTE ARADIĞIN GENİŞLİK AYARI BURADA ---
+        var roadMesh = pathCreator.GetComponent<RoadMeshCreator>();
+        if (roadMesh != null)
+        {
+            roadMesh.roadWidth = roadWidthForGeneratedPath; // İstediğin 4f değerini buraya çaktık
+            roadMesh.textureTiling = 25f;       // Doku sıklığını tam 23 yapıyoruz
+            roadMesh.TriggerUpdate(); // Mesh'i anında tazele dedik
+        }
     }
     private void OnDrawGizmos ()
     {
@@ -349,6 +358,8 @@ public class LevelManager : MonoBehaviour
     private void LoadNextLevel ()
     {
         currentLevelIndex++; // Sıradaki levele geç!
+        PlayerPrefs.SetInt("SavedLevel", currentLevelIndex);
+        PlayerPrefs.Save();
 
         if (currentLevelIndex < levelList.Count)
         {
@@ -378,6 +389,28 @@ public class LevelManager : MonoBehaviour
         if (CameraManager.Instance != null) CameraManager.Instance.FrameLevel();
     }
 
+    public void StartActiveLevel ()
+    {
+        // Resimdeki o güvenli kontrolleri buraya taşıdık kanka
+        currentLevelIndex = PlayerPrefs.GetInt("SavedLevel", 0);
+
+        if (levelList != null && levelList.Count > 0)
+        {
+            // Güvenlik: Liste aşımı kontrolü
+            if (currentLevelIndex >= levelList.Count)
+                currentLevelIndex = levelList.Count - 1;
+
+            // Level datasını ata
+            CurrentLevel = levelList[currentLevelIndex];
+
+            // ŞİMDİ LEVELI OLUŞTUR
+            GenerateLevel();
+        }
+        else
+        {
+            Debug.LogError("Kanka 'Level List' hala boş, SO'ları sürüklemedin mi?");
+        }
+    }
     #region BulletPoolMethods
     // Start veya InitializePool içinde çağırabilirsin
     private void InitializeBulletPool (int amount)

@@ -1,4 +1,5 @@
 using DG.Tweening;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using TMPro;
@@ -11,6 +12,15 @@ public class UIManager : MonoBehaviour
 
     [Header("Settings Panel")]
     public GameObject settingsPanel;
+    public GameObject outOfHealthPanel; // Can bitince çýkan uyarý paneli
+
+    [Header("Health (Can) Ayarlarý")]
+    public TextMeshProUGUI healthText;
+    public TextMeshProUGUI timerText;
+    public int maxHealth = 5;
+    public int restoreDuration = 1800; // 30 Dakika = 1800 Saniye
+    private int currentHealth;
+    private DateTime nextHealthTime;
 
     [Header("Vibration Switch (0-1 Mantýðý)")]
     public RectTransform vibHandle;      // Kayacak olan beyaz yuvarlak
@@ -39,7 +49,8 @@ public class UIManager : MonoBehaviour
 
         // Ýlk açýlýþta animasyonsuz ayarla
         UpdateVibVisuals(false);
-
+        LoadHealthData();
+        UpdateUI();
         // --- SES BAÞLANGIÇ AYARLARI ---
         if (audioSlider != null)
         {
@@ -51,6 +62,19 @@ public class UIManager : MonoBehaviour
 
             // Oyunun genel sesini ayarla
             AudioListener.volume = savedVolume;
+        }
+    }
+    void Update ()
+    {
+        // Can ful deðilse timer geri saymaya devam etsin
+        if (currentHealth < maxHealth)
+        {
+            HandleTimer();
+        }
+        if (Input.GetKeyDown(KeyCode.L))
+        {
+            UseHealth();
+            Debug.Log("Test: Can azaltýldý! Kalan: " + currentHealth);
         }
     }
 
@@ -72,6 +96,11 @@ public class UIManager : MonoBehaviour
                 Handheld.Vibrate(); // Tokatý basýnca bir titret bakalým
 #endif
         }
+    }
+
+    public void OnSettingsClosed ()
+    {
+        settingsPanel.SetActive(false);
     }
 
     private void UpdateVibVisuals (bool animate)
@@ -111,8 +140,112 @@ public class UIManager : MonoBehaviour
         if (levelTxt != null)
         {
             // Level index genelde 0'dan baþlar, o yüzden +1 ekleyip "LEVEL 1" yazdýrýyoruz
-            levelTxt.text = (levelIndex + 1) + ". SEVÝYE " .ToString();
+            levelTxt.text = (levelIndex + 1) + ". SEVÝYE ".ToString();
+        }
+    }
+    public void StartGameFromUI ()
+    {
+        // 1. Can kontrolü
+        if (!CanPlay())
+        {
+            if (outOfHealthPanel != null) outOfHealthPanel.SetActive(true);
+            Debug.Log("Canýn yok kanka, 30 dk bekle ya da reklam izle!");
+            return;
+        }
+
+        // 2. Panelleri yönet (LevelMenuManager'daki referanslarý kullanacaðýz)
+        // Bunun için LevelMenuManager'a bir referans alabiliriz veya 
+        // panelleri direkt UIManager'a da sürükleyebilirsin.
+        LevelMenuManager menuScript = FindObjectOfType<LevelMenuManager>();
+
+        if (menuScript != null)
+        {
+            menuScript.mainMenuPanel.SetActive(false);
+            menuScript.gameHUDPanel.SetActive(true);
+        }
+
+        // 3. Oyunu kur ve baþlat
+        if (LevelManager.Instance != null)
+        {
+            LevelManager.Instance.StartActiveLevel();
         }
     }
     public void ToggleSettingsPanel () => settingsPanel.SetActive(!settingsPanel.activeSelf);
+
+    #region Health Logic (Can Mantýðý)
+    void LoadHealthData ()
+    {
+        currentHealth = PlayerPrefs.GetInt("CurrentHealth", maxHealth);
+
+        // En son ne zaman can dolduðunu kontrol et (Offline ilerleme)
+        string lastTimeStr = PlayerPrefs.GetString("NextHealthTime", string.Empty);
+
+        if (!string.IsNullOrEmpty(lastTimeStr))
+        {
+            nextHealthTime = DateTime.Parse(lastTimeStr);
+
+            // Eðer geçen sürede canlarýn dolma vakti geldiyse hesapla
+            while (DateTime.Now > nextHealthTime && currentHealth < maxHealth)
+            {
+                currentHealth++;
+                nextHealthTime = nextHealthTime.AddSeconds(restoreDuration);
+            }
+        }
+        else
+        {
+            nextHealthTime = DateTime.Now;
+        }
+
+        SaveHealthData();
+    }
+
+    void HandleTimer ()
+    {
+        TimeSpan timeRemaining = nextHealthTime - DateTime.Now;
+
+        if (timeRemaining.TotalSeconds <= 0)
+        {
+            currentHealth++;
+            if (currentHealth < maxHealth)
+                nextHealthTime = DateTime.Now.AddSeconds(restoreDuration);
+
+            SaveHealthData();
+            UpdateUI();
+        }
+        else
+        {
+            // 29:59 formatýnda yazdýr
+            timerText.text = string.Format("{0:D2}:{1:D2}", timeRemaining.Minutes, timeRemaining.Seconds);
+        }
+    }
+
+    public void UseHealth ()
+    {
+        if (currentHealth > 0)
+        {
+            currentHealth--;
+            // Ýlk can harcandýðýnda timer baþlasýn
+            if (currentHealth == maxHealth - 1)
+                nextHealthTime = DateTime.Now.AddSeconds(restoreDuration);
+
+            SaveHealthData();
+            UpdateUI();
+        }
+    }
+
+    public bool CanPlay () => currentHealth > 0;
+
+    void SaveHealthData ()
+    {
+        PlayerPrefs.SetInt("CurrentHealth", currentHealth);
+        PlayerPrefs.SetString("NextHealthTime", nextHealthTime.ToString());
+        PlayerPrefs.Save();
+    }
+
+    public void UpdateUI ()
+    {
+        healthText.text = currentHealth.ToString();
+        if (currentHealth >= maxHealth) timerText.text = "MAX";
+    }
+    #endregion
 }
