@@ -32,8 +32,8 @@ public class UIManager : MonoBehaviour
     [Header("Level UI")]
     public TextMeshProUGUI levelTxt; // Inspector'dan o pikselli text'i buraya sürükle
     [Header("Pozisyon ve Renk Ayarlarý")]
-    public float offX = -50f;            // Deðer 0 (Kapalý) iken X pozisyonu
-    public float onX = 50f;              // Deðer 1 (Açýk) iken X pozisyonu
+    public float offX = -46f;            // Deðer 0 (Kapalý) iken X pozisyonu
+    public float onX = 46f;              // Deðer 1 (Açýk) iken X pozisyonu
     public Color colorOn = Color.green;
     public Color colorOff = Color.gray;
 
@@ -114,8 +114,8 @@ public class UIManager : MonoBehaviour
         if (animate)
         {
             // .SetEase(Ease.OutBack) ile o tatlý sekme efektini veriyoruz
-            vibHandle.DOAnchorPosX(targetX, 0.25f).SetEase(Ease.OutBack);
-            vibBackground.DOColor(targetColor, 0.25f);
+            vibHandle.DOAnchorPosX(targetX, 0.1f).SetEase(Ease.OutBack);
+            vibBackground.DOColor(targetColor, 2f);
         }
         else
         {
